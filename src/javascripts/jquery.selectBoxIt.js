@@ -1,3 +1,11 @@
+/*!
+ *2016-06-16 RICCA MODIFIED to have the SAME functionality, but to accept a new option nativeSelectCss hash,
+ *  which can override style attributes
+ *
+ *  solves this github issue : https://github.com/gfranko/jquery.selectBoxIt.js/issues/302
+ *
+ */
+
 /*! jquery.selectBoxIt - v3.8.1 - 2013-10-17
  * http://www.selectboxit.com
  * Copyright (c) 2013 Greg Franko; Licensed MIT*/
@@ -56,6 +64,9 @@
 
             // **defaultIcon**: Overrides the icon used by the dropdown list selected option to allow a user to specify a custom icon.  Accepts a String (CSS class name(s)).
             "defaultIcon": "",
+
+            // **showIcon**: If true shows the icon of the selected item
+            "showIcon": true,
 
             // **downArrowIcon**: Overrides the default down arrow used by the dropdown list to allow a user to specify a custom image.  Accepts a String (CSS class name(s)).
             "downArrowIcon": "",
@@ -124,6 +135,9 @@
 
             // **hideCurrent**: Determines whether or not the currently selected drop down option is hidden in the list
             "hideCurrent": false,
+
+            // **nativeSelectCss**: collection of hard-coded styles that will not be easy to override with css
+            "nativeSelectCss": {},
 
             "disableMobile": false
 
@@ -236,7 +250,7 @@
 
         // isDeferred
         // ----------
-        //      Checks if parameter is a defered object      
+        //      Checks if parameter is a defered object
         isDeferred: function (def) {
             return $.isPlainObject(def) && def.promise && def.done;
         },
@@ -463,6 +477,8 @@
 
                 iconClass,
 
+                iconClassChecked,
+
                 iconUrl,
 
                 iconUrlClass,
@@ -524,6 +540,8 @@
 
                 iconClass = currentOption.attr("data-icon") || "";
 
+                iconClassChecked = currentOption.attr("data-icon-checked") || "";
+
                 iconUrl = currentOption.attr("data-iconurl") || "";
 
                 iconUrlClass = iconUrl ? "selectboxit-option-icon-url" : "";
@@ -555,7 +573,7 @@
                 currentOption.attr("data-val", this.value);
 
                 // Uses string concatenation for speed (applies HTML attribute encoding)
-                currentItem += optgroupElement + '<li data-id="' + index + '" data-val="' + this.value + '" data-disabled="' + dataDisabled + '" class="' + optgroupClass + " selectboxit-option " + ($(this).attr("class") || "") + '"><a class="selectboxit-option-anchor"><span class="selectboxit-option-icon-container"><i class="selectboxit-option-icon ' + iconClass + ' ' + (iconUrlClass || self.theme["container"]) + '"' + iconUrlStyle + '></i></span>' + (self.options["html"] ? currentText : self.htmlEscape(currentText)) + '</a></li>';
+                currentItem += optgroupElement + '<li data-id="' + index + '" data-val="' + this.value + '" data-disabled="' + dataDisabled + '" class="' + optgroupClass + " selectboxit-option " + ($(this).attr("class") || "") + '"><a class="selectboxit-option-anchor"><span class="selectboxit-option-icon-container"><i data-icon-class="' + iconClass + '" data-icon-class-checked="' + iconClassChecked + '"  class="selectboxit-option-icon ' + iconClass + ' ' + (iconUrlClass || self.theme["container"]) + '"' + iconUrlStyle + '></i></span>' + (self.options["html"] ? currentText : self.htmlEscape(currentText)) + '</a></li>';
 
                 currentDataSearch = currentOption.attr("data-search");
 
@@ -628,7 +646,9 @@
             // Set the disabled CSS class for select box options
             self.list.find("li[data-disabled='true']").not(".optgroupHeader").addClass(self.theme["disabled"]);
 
-            self.dropdownImage.addClass(self.selectBox.attr("data-icon") || self.options["defaultIcon"] || self.listItems.eq(self.currentFocus).find("i").attr("class"));
+            if (self.options.showIcon) {
+                self.dropdownImage.addClass(self.selectBox.attr("data-icon") || self.options["defaultIcon"] || self.listItems.eq(self.currentFocus).find("i").attr("class"));
+            }
 
             self.dropdownImage.attr("style", self.listItems.eq(self.currentFocus).find("i").attr("style"));
 
@@ -1555,6 +1575,19 @@
 
                             if (self.isMultiselect) {
                                 $(self.listItems[i]).toggleClass("checked", isChecked);
+
+                                // Only after first option if showFirstOption is on
+                                if (!self.options.showFirstOption || self.options.showFirstOption && i) {
+                                    var iElement = $($(self.listItems[i]).find('i'));
+                                    if (isChecked) {
+                                        iElement.removeClass(iElement.attr('data-icon-class'));
+                                        iElement.addClass(iElement.attr('data-icon-class-checked'));
+                                    }
+                                    if (!isChecked) {
+                                        iElement.removeClass(iElement.attr('data-icon-class-checked'));
+                                        iElement.addClass(iElement.attr('data-icon-class'));
+                                    }
+                                }
                             }
 
                             if (isChecked) {
@@ -1575,16 +1608,22 @@
 
                     }
 
-                    if (currentOption.find("i").attr("class")) {
+                    // Multi select should not copy the class / style / icons because there is no good way to show them all
+                    if (!self.options.showIcon) {
+                        if (currentOption.find("i").attr("class")) {
 
-                        self.dropdownImage.attr("class", currentOption.find("i").attr("class")).addClass("selectboxit-default-icon");
+                            self.dropdownImage.attr("class", currentOption.find("i").attr("class")).addClass("selectboxit-default-icon");
 
-                        self.dropdownImage.attr("style", currentOption.find("i").attr("style"));
+                            self.dropdownImage.attr("style", currentOption.find("i").attr("style"));
+                        }
+                        // Triggers a custom changed event on the original select box
+                        self.triggerEvent("changed");
                     }
 
-                    // Triggers a custom changed event on the original select box
-                    if (!self.isMultiselect) {
-                        self.triggerEvent("changed");
+                    // Don't copy the default icon classes when isMultiple is turned on and we are hiding the default option
+                    if (!self.options.showIcon && !self.options.showFirstOption) {
+                        self.dropdownImage.removeClass(iElement.attr('data-icon-class'));
+                        self.dropdownImage.removeClass(iElement.attr('data-icon-class-checked'))
                     }
 
                 },
@@ -1840,7 +1879,7 @@
 
         // _copyAttributes
         // ---------------
-        //      Copies HTML attributes from the original select box to the new drop down 
+        //      Copies HTML attributes from the original select box to the new drop down
         _copyAttributes: function () {
 
             var self = this;
@@ -3009,7 +3048,7 @@
         self.dropdown.attr("tabindex", "-1");
 
         // Positions the original select box directly over top the new dropdown list using position absolute and "hides" the original select box using an opacity of 0.  This allows the mobile browser "wheel" interface for better usability.
-        self.selectBox.css({
+        self.selectBox.css($.extend({
 
             "display": "block",
 
@@ -3037,7 +3076,7 @@
 
             "-webkit-appearance": "menulist-button"
 
-        });
+        }, self.options["nativeSelectCss"]));
 
         if (self.originalElem.disabled) {
 
